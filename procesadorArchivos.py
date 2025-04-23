@@ -62,7 +62,7 @@ def leer_archivos(directorio):
                         paciente['HDL'] = test['HDL']
                         paciente['LDL'] = test['LDL']
                         paciente['TRIG'] = test['TRIG']
-                        #pacientes.append({'archivo': archivo, 'datos': d})  
+                        pacientes.append({'archivo': archivo, 'datos': d})  
 
                     pacientes.append({
                         'archivo': archivo,
@@ -85,6 +85,7 @@ def leer_archivos(directorio):
                         paciente['TP'] = row.get('test_tp')
                         paciente['TPT'] = row.get('test_ptt')
                         paciente['FIB'] = row.get('test_fib')
+                        pacientes.append({'archivo': archivo, 'datos': row})
 
                     pacientes.append({
                         'archivo': archivo,
