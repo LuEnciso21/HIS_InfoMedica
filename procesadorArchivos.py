@@ -2,6 +2,8 @@ import os
 import json
 import csv
 
+# procesar archivos
+
 def leer_archivos(directorio):
     pacientes = []
 
