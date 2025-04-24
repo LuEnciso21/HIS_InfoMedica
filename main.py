@@ -1,5 +1,6 @@
 from nicegui import ui
 from procesadorArchivos import leer_archivos
+from hl7_generator import generar_hl7_txt
 from mongoClient import insertar, buscar, actualizar, eliminar
 
 # --- Etiqueta principal para mensajes globales ---
@@ -19,9 +20,15 @@ def main_page():
     ui.label().bind_text_from(data_label, 'value')
 
 # --- Función para cargar archivos y agregar pacientes ---
+import os  # <-- Añadimos esto al inicio del archivo
+
 def cargar_datos():
     datos = leer_archivos('data')
     pacientes_a_insertar = []
+    ruta = 'salida'
+
+    # Crear la carpeta si no existe
+    os.makedirs(ruta, exist_ok=True)
 
     for paciente in datos:
         paciente_data = paciente.get('datos', {})
@@ -29,10 +36,11 @@ def cargar_datos():
             existente = buscar(paciente_data['ID'])
             if not existente:
                 pacientes_a_insertar.append(paciente_data)
+                generar_hl7_txt(paciente, ruta)  # ← Se genera HL7 para cada paciente nuevo
 
     if pacientes_a_insertar:
         insertar(pacientes_a_insertar)
-        data_label.value = f"📂 {len(pacientes_a_insertar)} pacientes nuevos insertados."
+        data_label.value = f"📂 {len(pacientes_a_insertar)} pacientes nuevos insertados y archivos HL7 generados."
     else:
         data_label.value = "⚠️ No hay pacientes nuevos para insertar."
 

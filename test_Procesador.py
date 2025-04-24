@@ -1,20 +1,22 @@
 from procesadorArchivos import leer_archivos
+from hl7_generator import generar_hl7_txt
 import json
+import os
 
 def test_lectura():
-    pacientes = leer_archivos('data')
+    carpeta_entrada = 'data'
+    carpeta_salida = 'salida'
+
+    pacientes = leer_archivos(carpeta_entrada)
 
     print("Se cargaron", len(pacientes), "pacientes")
     for p in pacientes:
-        archivo = p.get('archivo', 'Desconocido')  # Obtener el nombre del archivo
-        
-        # Imprimir el nombre del archivo primero
+        archivo = p.get('archivo', 'Desconocido')
         print(f"{archivo} -> ")
-        
-        # Imprimir los datos del paciente
-        print(json.dumps(p['datos'], ensure_ascii=False,indent=4))  
+        print(json.dumps(p['datos'], ensure_ascii=False, indent=4))
+
+        # Generar archivo HL7 por paciente
+        generar_hl7_txt(p, carpeta_salida)
 
 if __name__ == "__main__":
     test_lectura()
-
-
