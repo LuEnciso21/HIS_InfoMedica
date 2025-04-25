@@ -9,13 +9,34 @@ data_label = ui.label("").style("margin-top: 20px;")
 # --- Página principal ---
 @ui.page("/")
 def main_page():
-    ui.label("Sistema HIS - Gestión de Pacientes").classes("text-2xl mb-4")
+    # --- Encabezado tipo barra superior con título centrado y nombre del hospital a la derecha ---
+    with ui.row().classes('w-full bg-[#4d82bc] text-white p-2 items-center justify-between'):  # Cambié el color de fondo
+        ui.label().classes('w-[110px]')
+        
+        # Texto central
+        ui.label("SISTEMA DE INFORMACIÓN HOSPITALARIA").classes('text-2xl font-semibold text-center flex-1')
+        
+        # Mostrar la imagen del hospital
+        ui.image("LOGOHOSPITAL_R.png").classes('w-[110px] h-auto text-right')
 
     with ui.row():
         ui.button("📂 Cargar datos desde archivos", on_click=cargar_datos)
         ui.button("🔍 Buscar paciente", on_click=abrir_busqueda)
         ui.button("📝 Actualizar paciente", on_click=abrir_actualizacion)
         ui.button("🗑️ Eliminar paciente", on_click=abrir_eliminacion)
+    
+    # --- Carrusel de imágenes debajo de los botones ---
+    with ui.carousel(
+        animated=True,
+        arrows=True,
+        navigation=True
+    ).props('autoplay').classes('w-full h-[calc(100vh-160px)]'):
+        with ui.carousel_slide().classes('p-0'):
+            ui.image('98.webp').classes('w-full h-full object-cover')
+        with ui.carousel_slide().classes('p-0'):
+            ui.image('87.jpg').classes('w-full h-full object-cover')
+        with ui.carousel_slide().classes('p-0'):
+            ui.image('100.jpg').classes('w-full h-full object-cover')
 
     ui.label().bind_text_from(data_label, 'value')
 
@@ -40,9 +61,14 @@ def cargar_datos():
 
     if pacientes_a_insertar:
         insertar(pacientes_a_insertar)
-        data_label.value = f"📂 {len(pacientes_a_insertar)} pacientes nuevos insertados y archivos HL7 generados."
+        mensaje = f"📂 {len(pacientes_a_insertar)} pacientes nuevos insertados y archivos HL7 generados."
     else:
-        data_label.value = "⚠️ No hay pacientes nuevos para insertar."
+        mensaje = "⚠️ No hay pacientes nuevos para insertar."
+    
+    # Mostrar el mensaje en una notificación emergente
+    ui.notify(mensaje, duration=5000)  # Duración en milisegundos (5 segundos)
+
+
 
 # --- Función para buscar paciente ---
 def abrir_busqueda():
@@ -103,14 +129,29 @@ def abrir_eliminacion():
     with ui.dialog() as dialog, ui.card():
         ui.label("Eliminar paciente")
         id_input = ui.input("ID del paciente")
-        result_label = ui.label()
 
         def eliminar_paciente():
             r = eliminar(id_input.value)
             if r.deleted_count:
-                result_label.text = "🗑️ Paciente eliminado."
+                # Crear un nuevo diálogo para mostrar el mensaje de eliminación exitosa con estilo
+                with ui.dialog() as confirm_dialog:
+                    confirm_dialog.classes('bg-white p-8 rounded-lg shadow-lg')  # Estilo personalizado
+                    
+                    with ui.column().classes('items-center'):  # Centra el contenido en la columna
+                        ui.label("Paciente eliminado exitosamente.").classes('text-lg font-medium text-black-500')
+                        ui.button("Cerrar", on_click=confirm_dialog.close).classes('mt-4')  # Botón debajo del texto
+
+                confirm_dialog.open()  # Mostrar el mensaje de eliminación
             else:
-                result_label.text = "⚠️ Paciente no encontrado"
+                # Crear un nuevo diálogo para mostrar el mensaje de error con estilo
+                with ui.dialog() as error_dialog:
+                    error_dialog.classes('bg-white p-8 rounded-lg shadow-lg')  # Estilo personalizado
+                    
+                    with ui.column().classes('items-center'):  # Centra el contenido en la columna
+                        ui.label("⚠️ Paciente no encontrado.").classes('text-lg font-medium text-red-500')
+                        ui.button("Cerrar", on_click=error_dialog.close).classes('mt-4')  # Botón debajo del texto
+
+                error_dialog.open()  # Mostrar el mensaje de error
 
         ui.button("Eliminar", on_click=eliminar_paciente)
         ui.button("Cerrar", on_click=dialog.close)
