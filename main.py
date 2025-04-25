@@ -102,26 +102,63 @@ def abrir_busqueda():
 
 # --- Función para actualizar paciente ---
 def abrir_actualizacion():
-    with ui.dialog() as dialog, ui.card():
-        ui.label("Actualizar paciente")
-        id_input = ui.input("ID del paciente")
-        nuevos_input = ui.input("Nuevos datos (ej: Nombre:Juan,Edad:30)")
-        result_label = ui.label()
+    with ui.dialog() as dialog:
+        with ui.card().style("width: 700px; height: 500px; overflow: auto; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 20px;"):
+            ui.label("Actualizar paciente").style("margin-bottom: 20px;")
+            
+            # Campo para ingresar ID del paciente 
+            id_input = ui.input("ID del paciente").style("width: 100%; height: 40px; font-size: 16px; margin-bottom: 20px;")
+            
+            # Etiqueta para mostrar la información del paciente o mensajes
+            result_label = ui.label().style("margin-bottom: 20px;")
 
-        def actualizar_paciente():
-            try:
-                nuevos_datos = dict(pair.split(":") for pair in nuevos_input.value.split(","))
-                r = actualizar(id_input.value, nuevos_datos)
-                if r.matched_count:
-                    result_label.text = "🔄 Paciente actualizado."
+            # Campo para ingresar los nuevos datos 
+            nuevos_input = ui.input("Nuevos datos (ej: Nombre:Juan,Edad:30)").style("width: 100%; height: 40px; font-size: 16px; margin-bottom: 20px;")
+
+            # Función para buscar paciente por ID
+            def buscar_paciente():
+                paciente = buscar(id_input.value)
+                print(f"Buscando paciente con ID: {id_input.value}")  
+                if paciente:
+                    # Si el paciente es encontrado, mostrar sus datos
+                    paciente_info = "\n".join(f"{k}: {v}" for k, v in paciente.items())
+                    result_label.text = f"👤 Paciente encontrado:\n{paciente_info}"
                 else:
                     result_label.text = "⚠️ Paciente no encontrado"
-            except:
-                result_label.text = "❌ Formato incorrecto"
 
-        ui.button("Actualizar", on_click=actualizar_paciente)
-        ui.button("Cerrar", on_click=dialog.close)
+            # Función para actualizar los datos del paciente
+            def actualizar_paciente():
+                try:
+                    # Asegúrate de que los nuevos datos no estén vacíos
+                    if not nuevos_input.value.strip():
+                        result_label.text = "⚠️ Por favor ingrese nuevos datos en el formato correcto (ej: Nombre:Juan,Edad:30)."
+                        return
+                    
+                    # Convertir los nuevos datos en un diccionario
+                    nuevos_datos = dict(pair.split(":") for pair in nuevos_input.value.split(","))
+                    print(f"Nuevos datos para actualizar: {nuevos_datos}") 
+                    
+                    # Intentar actualizar el paciente
+                    r = actualizar(id_input.value, nuevos_datos)
+                    if r.matched_count:
+                        result_label.text = "🔄 Paciente actualizado correctamente."
+                    else:
+                        result_label.text = "⚠️ Error al actualizar el paciente."
+                except Exception as e:
+                    result_label.text = f"❌ Error: {str(e)}"
+                    print(f"Error al actualizar: {str(e)}")  
 
+            # Contenedor para los botones, alineados en el centro de la ventana
+            with ui.row().style("width: 100%; justify-content: center; gap: 10px; margin-top: 20px;"):
+                # Botón de "Buscar"
+                ui.button("Buscar", on_click=buscar_paciente).style("width: 100px; height: 40px;")
+                
+                # Botón de "Actualizar"
+                actualizar_button = ui.button("Actualizar", on_click=actualizar_paciente).style("width: 100px; height: 40px;")
+                
+                # Botón de "Cerrar"
+                ui.button("Cerrar", on_click=dialog.close).style("width: 100px; height: 40px;")
+        
     dialog.open()
 
 # --- Función para eliminar paciente ---
