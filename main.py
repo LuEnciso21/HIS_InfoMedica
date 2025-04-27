@@ -5,315 +5,171 @@ from hl7_generator import generar_hl7_txt, actualizar_hl7_txt
 from mongoClient import insertar, buscar, actualizar, eliminar
 
 # --- Etiqueta principal para mensajes globales ---
-data_label = ui.label("").style("margin-top: 20px;")
+data_label = ui.label("").classes('mt-4 text-center')
 
 # --- Página principal ---
 @ui.page("/")
 def main_page():
-    # --- Encabezado tipo barra superior con título centrado y nombre del hospital a la derecha ---
-    with ui.row().classes('w-full bg-[#4d82bc] text-white p-2 items-center justify-between'):  # Cambié el color de fondo
-        ui.label().classes('w-[110px]')
-        
-        # Texto central
-        ui.label("SISTEMA DE INFORMACIÓN HOSPITALARIA").classes('text-2xl font-semibold text-center flex-1')
-        
-        # Mostrar la imagen del hospital
-        ui.image("LOGOHOSPITAL_R.png").classes('w-[110px] h-auto text-right')
+    # Encabezado
+    with ui.row().classes('w-full bg-[#4d82bc] text-white p-4 items-center justify-between'):
+        ui.image("LOGOHOSPITAL_R.png").classes('w-16 h-auto')
+        ui.label("SISTEMA DE INFORMACIÓN HOSPITALARIA").classes('text-3xl font-bold flex-1 text-center')
+        ui.label().classes('w-16')  # placeholder
 
-    with ui.row():
-        ui.button("📂 Cargar datos desde archivos", on_click=cargar_datos)
-        ui.button("🔍 Buscar paciente", on_click=abrir_busqueda)
-        ui.button("📝 Actualizar paciente", on_click=abrir_actualizacion)
-        ui.button("🗑️ Eliminar paciente", on_click=abrir_eliminacion)
-    
-    # --- Carrusel de imágenes debajo de los botones ---
-    with ui.carousel(
-        animated=True,
-        arrows=True,
-        navigation=True
-    ).props('autoplay').classes('w-full h-[calc(100vh-160px)]'):
-        with ui.carousel_slide().classes('p-0'):
-            ui.image('98.webp').classes('w-full h-full object-cover')
-        with ui.carousel_slide().classes('p-0'):
-            ui.image('87.jpg').classes('w-full h-full object-cover')
-        with ui.carousel_slide().classes('p-0'):
-            ui.image('100.jpg').classes('w-full h-full object-cover')
+    # Botones de acción
+    with ui.row().classes('gap-3 my-6 justify-center'):
+        ui.button("📂 Cargar datos desde archivos", on_click=cargar_datos).classes('px-6 py-2 rounded-lg shadow')
+        ui.button("🔍 Buscar paciente", on_click=abrir_busqueda).classes('px-6 py-2 rounded-lg shadow')
+        ui.button("📝 Actualizar paciente", on_click=abrir_actualizacion).classes('px-6 py-2 rounded-lg shadow')
+        ui.button("🗑️ Eliminar paciente", on_click=abrir_eliminacion).classes('px-6 py-2 rounded-lg shadow')
 
-    ui.label().bind_text_from(data_label, 'value')
+    # Carrusel de imágenes
+    with ui.carousel(animated=True, arrows=True, navigation=True).props('autoplay').classes('w-full h-64 mb-6'):
+        for img in ['98.webp', '87.jpg', '100.jpg']:
+            with ui.carousel_slide().classes('p-0'):
+                ui.image(img).classes('w-full h-full object-cover')
+
+    # Mensaje de estado
+    ui.label().bind_text_from(data_label, 'value').classes('text-lg')
 
 # --- Función para cargar archivos y agregar pacientes ---
-
 def cargar_datos():
     datos = leer_archivos('data')
-    pacientes_a_insertar = []
+    nuevos = 0
     ruta = 'salida'
-
-    # Crear la carpeta si no existe
     os.makedirs(ruta, exist_ok=True)
 
     for paciente in datos:
-        paciente_data = paciente.get('datos', {})
-        if 'ID' in paciente_data and 'Nombres' in paciente_data and 'Apellidos' in paciente_data:
-            existente = buscar(paciente_data['ID'])
-            if not existente:
-                pacientes_a_insertar.append(paciente_data)
-                generar_hl7_txt(paciente, ruta)  # ← Se genera HL7 para cada paciente nuevo
+        pd = paciente['datos']
+        if all(k in pd for k in ('ID', 'Nombres', 'Apellidos')) and not buscar(pd['ID']):
+            insertar(pd)
+            generar_hl7_txt(paciente, ruta)
+            nuevos += 1
 
-    if pacientes_a_insertar:
-        insertar(pacientes_a_insertar)
-        mensaje = f"📂 {len(pacientes_a_insertar)} pacientes nuevos insertados y archivos HL7 generados."
-    else:
-        mensaje = "⚠️ No hay pacientes nuevos para insertar."
-    
-    # Mostrar el mensaje en una notificación emergente
-    ui.notify(mensaje, duration=5000)  # Duración en milisegundos (5 segundos)
-
-
+    mensaje = (f"✅ {nuevos} pacientes insertados y HL7 generados." if nuevos else "⚠️ No hay pacientes nuevos.")
+    ui.notify(mensaje, duration=4000)
+    data_label.value = mensaje
 
 # --- Función para buscar paciente ---
 def abrir_busqueda():
-    with ui.dialog() as dialog_busqueda, ui.card():
-        ui.label("Buscar paciente por ID")
-        id_input = ui.input("ID del paciente")
-        result_label = ui.label()
+    with ui.dialog() as dialog, ui.card().classes('p-4 w-80'):
+        ui.label("🔍 Buscar paciente").classes('text-xl font-semibold mb-3')
+        id_input = ui.input("ID del paciente").classes('mb-3')
+        result_label = ui.label().classes('text-sm text-red-600 mb-3')
 
-        def buscar_paciente():
-            paciente = buscar(id_input.value)
-            if paciente:
-                if '_id' in paciente:
-                    paciente['_id'] = str(paciente['_id'])  # Evitar error de serialización
-
-                texto = "\n".join(f"{k}: {v}" for k, v in paciente.items())
-
-                with ui.dialog() as dialog_resultado, ui.card():
-                    ui.label("👤 Datos del paciente").classes("text-lg font-bold")
-                    ui.label(texto).classes("whitespace-pre-wrap")
-                    ui.button("Cerrar", on_click=dialog_resultado.close)
-
-                dialog_resultado.open()
+        def b():
+            p = buscar(id_input.value)
+            if p:
+                ocultos = {'_id', 'header_info', 'device', 'ips', 'model', 'serial', 'date', 'control_id'}
+                display = {k: v for k, v in p.items() if k not in ocultos}
+                txt = "\n".join(f"• {k}: {v}" for k, v in display.items())
+                with ui.dialog() as d2, ui.card().classes('p-4 w-80'):
+                    ui.label("👤 Datos del paciente").classes('text-lg font-medium mb-2')
+                    ui.label(txt).classes('whitespace-pre-wrap mb-4')
+                    ui.button("Cerrar", on_click=d2.close).classes('px-4')
+                d2.open()
             else:
                 result_label.text = "⚠️ Paciente no encontrado"
 
-        ui.button("Buscar", on_click=buscar_paciente)
-        ui.button("Cerrar", on_click=dialog_busqueda.close)
-        result_label
-
-    dialog_busqueda.open()
+        ui.button("Buscar", on_click=b).classes('mr-2 px-4')
+        ui.button("Cerrar", on_click=dialog.close).classes('px-4')
+    dialog.open()
 
 # --- Función para actualizar paciente ---
 def abrir_actualizacion():
-    with ui.dialog() as dialog, ui.card():
-        ui.label("Actualizar paciente")
-        id_input = ui.input("ID del paciente")
-        result_label = ui.label()
-        info_paciente = ui.label().classes("whitespace-pre-wrap text-sm text-left")
-        info1 = ui.label("Digitar el campo literal como se muestra en pantalla").classes("text-sm text-gray-600 mb-1")
-        info2 = ui.label("Ej: Nombres:----,Apellidos:Cruz").classes("text-sm text-gray-600 mb-2")
-
-        nuevos_input = ui.input("Datos(ej: Edad:35,Nombres:Pedro)")
-        info1.visible = False
-        info2.visible = False
+    with ui.dialog() as dialog, ui.card().classes('p-4 w-80'):
+        ui.label("📝 Actualizar paciente").classes('text-xl font-semibold mb-3')
+        id_input = ui.input("ID del paciente").classes('mb-3')
+        info = ui.label().classes('whitespace-pre-wrap text-sm mb-2')
+        aviso = ui.label().classes('text-sm text-gray-500 mb-2')
+        nuevos_input = ui.input("Datos (ej: Edad:35,device:XYZ)").classes('mb-3')
         nuevos_input.visible = False
-        archivo_original = {'nombre': None}
+        result = ui.label().classes('text-sm text-red-600 mb-3')
 
-        def buscar_archivo_por_id(id_buscado):
-            ruta_salida = 'salida'
-            if not os.path.exists(ruta_salida):
-                return None
+        archivo_original = {'msh': None, 'obr': None, 'obx': None, 'file': None}
 
-            for archivo in os.listdir(ruta_salida):
-                if archivo.endswith('.txt'):
-                    ruta_archivo = os.path.join(ruta_salida, archivo)
-                    with open(ruta_archivo, 'r', encoding='utf-8') as f:
-                        obx_seg = []  # Inicializamos la lista para los segmentos OBX
-                        for linea in f:
-                            if linea.startswith('MSH'):
-                                    msh = linea.strip()
-                            if linea.startswith('PID'):
-                                segmentos = linea.split('|')
-                                if len(segmentos) >= 4 and int(segmentos[3]) == id_buscado:
-                                    for linea in f:  # Continuamos leyendo después de PID
-                                        if linea.startswith('MSH'):
-                                            msh = linea.strip()
-                                        elif linea.startswith('OBR'):
-                                            obr = linea.strip()
-                                        elif linea.startswith('OBX'):
-                                            obx = linea.strip()
-                                            obx_seg.append(obx)  # Agregar cada OBX encontrado
-                                    return msh, obr, obx_seg, archivo  # Retornamos los segmentos y el archivo
+        def buscar_archivo(idn):
+            ruta = 'salida'
+            if not os.path.exists(ruta): return None
+            for f in os.listdir(ruta):
+                if f.endswith('.txt'):
+                    with open(os.path.join(ruta, f), 'r', encoding='utf-8') as h:
+                        msh = obr = None; obx = []
+                        for line in h:
+                            if line.startswith('MSH'): msh = line.strip()
+                            if line.startswith('PID') and int(line.split('|')[3]) == idn:
+                                for L in h:
+                                    if L.startswith('OBR'): obr = L.strip()
+                                    elif L.startswith('OBX'): obx.append(L.strip())
+                                break
+                        if msh and obr: return msh, obr, obx, f
             return None
 
-        def cargar_y_mostrar():
-            paciente = buscar(id_input.value)
-            if paciente:
-                msh,obr,obx,archivo_encontrado = buscar_archivo_por_id(int(id_input.value))
-                if archivo_encontrado:
-                    archivo_original['nombre'] = archivo_encontrado
+        def load():
+            p = buscar(id_input.value)
+            if not p:
+                info.text = "⚠️ Paciente no encontrado"
+                return
+            res = buscar_archivo(int(id_input.value))
+            if not res:
+                info.text = "⚠️ Archivo HL7 no encontrado"
+                return
+            msh, obr, obx, fn = res
+            archivo_original.update({'msh': msh, 'obr': obr, 'obx': obx, 'file': fn})
+            ocultos = {'_id', 'header_info', 'device', 'ips', 'model', 'serial', 'date', 'control_id'}
+            display = {k: v for k, v in p.items() if k not in ocultos}
+            info.text = "\n".join(f"• {k}: {v}" for k, v in display.items())
+            aviso.text = "Ingrese campos a actualizar"
+            nuevos_input.visible = True
+            load_btn.delete()
+            ui.button("Actualizar", on_click=update).classes('px-4')
 
-                if '_id' in paciente:
-                    paciente['_id'] = str(paciente['_id'])
-                texto = "\n".join(f"{k}: {v}" for k, v in paciente.items())
-                info_paciente.text = texto
-                info1.visible = True
-                info2.visible = True
-                nuevos_input.visible = True
-                cargar_button.delete()
+        def update():
+            try:
+                raw = dict(pair.split(":", 1) for pair in nuevos_input.value.split(","))
+            except:
+                result.text = "⚠️ Formato inválido"; return
+            raw.pop('ID', None)
+            if not raw:
+                result.text = "⚠️ Sin datos para actualizar"; return
+            p = buscar(id_input.value)
+            campos_msh = {'device','ips','model','serial','date','control_id'}
+            campos_db = set(k for k in p.keys() if k not in campos_msh and k != '_id')
+            valid = campos_db.union(campos_msh)
+            nuevos = {k: v for k, v in raw.items() if k in valid}
+            if not nuevos:
+                result.text = "⚠️ Ningún campo válido"; return
+            actualizar(id_input.value, nuevos)
+            parts = archivo_original['msh'].split('|')
+            pos = {'device':2,'ips':3,'model':4,'serial':5,'date':6,'control_id':9}
+            for k, i in pos.items():
+                if k in nuevos: parts[i] = nuevos[k]
+            new_msh = '|'.join(parts)
+            full = {'archivo': os.path.splitext(archivo_original['file'])[0] + '_upd', 'datos': buscar(id_input.value), 'datos_completos': buscar(id_input.value)}
+            actualizar_hl7_txt(full, 'salida', new_msh, archivo_original['obr'], archivo_original['obx'])
+            ui.notify("✅ Actualización completa", duration=3000)
+            dialog.close()
 
-                def actualizar_paciente():
-                    try:
-                        nuevos_datos_raw = dict(pair.split(":") for pair in nuevos_input.value.split(","))
-                        paciente_actual = buscar(id_input.value)
-
-                        if not paciente_actual:
-                            result_label.text = "⚠️ Paciente no encontrado"
-                            return
-
-                        campos_validos = {k for k in paciente_actual.keys() if k != "ID"}
-                        nuevos_datos = {k: v for k, v in nuevos_datos_raw.items() if k in campos_validos}
-                        campos_invalidos = [k for k in nuevos_datos_raw if k not in campos_validos]
-
-                        if not nuevos_datos:
-                            result_label.text = "⚠️ Ningún campo válido para actualizar."
-                            return
-
-                        r = actualizar(id_input.value, nuevos_datos)
-                        if r.matched_count:
-                            paciente_actualizado = buscar(id_input.value)
-                            if paciente_actualizado:
-                                if archivo_original['nombre']:
-                                    nombre_base = os.path.splitext(archivo_original['nombre'])[0]
-                                    nombre_actualizado = f"{nombre_base}_actualizado"
-                                else:
-                                    nombre_actualizado = f"paciente{id_input.value}_actualizado.hl7"
-
-                                paciente_actualizado_full = {
-                                    'archivo': nombre_actualizado,
-                                    'datos': paciente_actualizado,
-                                    'datos_completos': paciente_actualizado
-                                }
-
-                                # Solo se actualiza el PID, MSH y OBR se mantienen
-                                actualizar_hl7_txt(paciente_actualizado_full, 'salida',msh,obr,obx)
-
-                                msg = f"🔄 Paciente actualizado. {nombre_actualizado}"
-                                if campos_invalidos:
-                                    msg += f"\n⚠️ Campos ignorados: {', '.join(campos_invalidos)}"
-                                result_label.text = msg
-                                info_paciente.text = "\n".join(f"{k}: {v}" for k, v in paciente_actualizado.items())
-                            else:
-                                result_label.text = "⚠️ No se pudo recuperar el paciente actualizado"
-                        else:
-                            result_label.text = "⚠️ Paciente no encontrado"
-                    except Exception as e:
-                        result_label.text = f"❌ Error: {str(e)}"
-
-                ui.button("Actualizar", on_click=actualizar_paciente)
-            else:
-                info_paciente.text = "⚠️ Paciente no encontrado"
-
-        cargar_button = ui.button("Cargar datos", on_click=cargar_y_mostrar)
-
-        info_paciente
-        nuevos_input
-        ui.button("Cerrar", on_click=dialog.close)
-        result_label
-
+        load_btn = ui.button("Cargar datos", on_click=load).classes('px-4 mb-2')
+        ui.button("Cerrar", on_click=dialog.close).classes('px-4')
     dialog.open()
-"""
-def abrir_actualizacion():
-    with ui.dialog() as dialog:
-        with ui.card().style("width: 700px; height: 500px; overflow: auto; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 20px;"):
-            ui.label("Actualizar paciente").style("margin-bottom: 20px;")
-            
-            # Campo para ingresar ID del paciente 
-            id_input = ui.input("ID del paciente").style("width: 100%; height: 40px; font-size: 16px; margin-bottom: 20px;")
-            
-            # Etiqueta para mostrar la información del paciente o mensajes
-            result_label = ui.label().style("margin-bottom: 20px;")
 
-            # Campo para ingresar los nuevos datos 
-            nuevos_input = ui.input("Nuevos datos (ej: Nombre:Juan,Edad:30)").style("width: 100%; height: 40px; font-size: 16px; margin-bottom: 20px;")
-
-            # Función para buscar paciente por ID
-            def buscar_paciente():
-                paciente = buscar(id_input.value)
-                print(f"Buscando paciente con ID: {id_input.value}")  
-                if paciente:
-                    # Si el paciente es encontrado, mostrar sus datos
-                    paciente_info = "\n".join(f"{k}: {v}" for k, v in paciente.items())
-                    result_label.text = f"👤 Paciente encontrado:\n{paciente_info}"
-                else:
-                    result_label.text = "⚠️ Paciente no encontrado"
-
-            # Función para actualizar los datos del paciente
-            def actualizar_paciente():
-                try:
-                    # Asegúrate de que los nuevos datos no estén vacíos
-                    if not nuevos_input.value.strip():
-                        result_label.text = "⚠️ Por favor ingrese nuevos datos en el formato correcto (ej: Nombre:Juan,Edad:30)."
-                        return
-                    
-                    # Convertir los nuevos datos en un diccionario
-                    nuevos_datos = dict(pair.split(":") for pair in nuevos_input.value.split(","))
-                    print(f"Nuevos datos para actualizar: {nuevos_datos}") 
-                    
-                    # Intentar actualizar el paciente
-                    r = actualizar(id_input.value, nuevos_datos)
-                    if r.matched_count:
-                        result_label.text = "🔄 Paciente actualizado correctamente."
-                    else:
-                        result_label.text = "⚠️ Error al actualizar el paciente."
-                except Exception as e:
-                    result_label.text = f"❌ Error: {str(e)}"
-                    print(f"Error al actualizar: {str(e)}")  
-
-            # Contenedor para los botones, alineados en el centro de la ventana
-            with ui.row().style("width: 100%; justify-content: center; gap: 10px; margin-top: 20px;"):
-                # Botón de "Buscar"
-                ui.button("Buscar", on_click=buscar_paciente).style("width: 100px; height: 40px;")
-                
-                # Botón de "Actualizar"
-                actualizar_button = ui.button("Actualizar", on_click=actualizar_paciente).style("width: 100px; height: 40px;")
-                
-                # Botón de "Cerrar"
-                ui.button("Cerrar", on_click=dialog.close).style("width: 100px; height: 40px;")
-        
-    dialog.open()
-"""
 # --- Función para eliminar paciente ---
 def abrir_eliminacion():
-    with ui.dialog() as dialog, ui.card():
-        ui.label("Eliminar paciente")
-        id_input = ui.input("ID del paciente")
+    with ui.dialog() as dialog, ui.card().classes('p-4 w-72'):
+        ui.label("🗑️ Eliminar paciente").classes('text-xl font-semibold mb-3')
+        id_input = ui.input("ID del paciente").classes('mb-3')
 
-        def eliminar_paciente():
+        def do():
             r = eliminar(id_input.value)
-            if r.deleted_count:
-                # Crear un nuevo diálogo para mostrar el mensaje de eliminación exitosa con estilo
-                with ui.dialog() as confirm_dialog:
-                    confirm_dialog.classes('bg-white p-8 rounded-lg shadow-lg')  # Estilo personalizado
-                    
-                    with ui.column().classes('items-center'):  # Centra el contenido en la columna
-                        ui.label("Paciente eliminado exitosamente.").classes('text-lg font-medium text-black-500')
-                        ui.button("Cerrar", on_click=confirm_dialog.close).classes('mt-4')  # Botón debajo del texto
+            msg = "✅ Paciente eliminado" if r.deleted_count else "⚠️ Paciente no encontrado"
+            ui.notify(msg, duration=3000)
+            dialog.close()
 
-                confirm_dialog.open()  # Mostrar el mensaje de eliminación
-            else:
-                # Crear un nuevo diálogo para mostrar el mensaje de error con estilo
-                with ui.dialog() as error_dialog:
-                    error_dialog.classes('bg-white p-8 rounded-lg shadow-lg')  # Estilo personalizado
-                    
-                    with ui.column().classes('items-center'):  # Centra el contenido en la columna
-                        ui.label("⚠️ Paciente no encontrado.").classes('text-lg font-medium text-red-500')
-                        ui.button("Cerrar", on_click=error_dialog.close).classes('mt-4')  # Botón debajo del texto
-
-                error_dialog.open()  # Mostrar el mensaje de error
-
-        ui.button("Eliminar", on_click=eliminar_paciente)
-        ui.button("Cerrar", on_click=dialog.close)
-
+        ui.button("Eliminar", on_click=do).classes('px-4 mr-2')
+        ui.button("Cerrar", on_click=dialog.close).classes('px-4')
     dialog.open()
 
 # --- Iniciar servidor ---
-if __name__ in {"__main__", "__mp_main__"}:
+if __name__ in {"__main__","__mp_main__"}:
     ui.run()

@@ -114,8 +114,5 @@ def actualizar_hl7_txt(paciente, salida_dir,msh,obr,obx):
         lines.append(obx_line)
 
     # OBX Segment
-    
-   
-
     with open(path, 'w', encoding='utf-8') as f:
-        f.write("\r\n".join(lines))
+        f.write("\r\n".join(lines)) 
